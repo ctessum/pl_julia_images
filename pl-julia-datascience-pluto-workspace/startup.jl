@@ -4,7 +4,7 @@ using Pluto
 server_options = Pluto.Configuration.ServerOptions(; host="0.0.0.0", 
                         port=1234, 
                         launch_browser=false,
-                        #notebook="/home/julia/notebook.jl",
+                        notebook="/home/julia/notebook.jl",
                         dismiss_update_notification=true,
                     )
 eval_options = Pluto.Configuration.EvaluationOptions(;
