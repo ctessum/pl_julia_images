@@ -4,7 +4,7 @@
 #export platform="linux/arm64/v8"
 export platform="linux/amd64" # Cross-compilation not working.
 
-tag="0.4.3"
+tag="0.5.0"
 
 
 #for image in pl-julia-datascience-pluto-workspace
