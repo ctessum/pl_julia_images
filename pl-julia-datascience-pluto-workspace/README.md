@@ -9,9 +9,13 @@ docker buildx build --platform linux/arm64/v8,linux/amd64 --push --tag ctessum/p
 To run:
 
 ``` bash
+docker run --rm -it -p 1234:1234 --user 1001:1001 \
+    -v "`pwd`:/home/julia/workspace" \
+    ctessum/pl-julia-datascience-pluto-workspace:latest
+
+OR
 
 docker run --rm -it -p 1234:1234 --user 1001:1001 \
-    -v "`pwd`:/home/julia" \
     ctessum/pl-julia-datascience-pluto-workspace:latest
 
 ```

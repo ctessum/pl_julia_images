@@ -1,8 +1,0 @@
-name = "Startup"
-uuid = "f36b2a15-3cca-45a9-a5db-826582f82334"
-authors = ["Christopher Tessum <ctessum@gmail.com>"]
-version = "0.1.0"
-
-[deps]
-Pluto = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
-PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
