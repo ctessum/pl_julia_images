@@ -4,4 +4,4 @@ ENV JULIA_WORKER_TIMEOUT=3600
 
 EXPOSE 1234
 
-CMD [ "julia", "--project=/home/julia/project", "--color=no", "--heap-size-hint=1G", "/home/julia/project/startup.jl" ]
+CMD [ "julia", "--project=/home/julia/project", "--color=no", "--heap-size-hint=300M", "/home/julia/project/startup.jl" ]

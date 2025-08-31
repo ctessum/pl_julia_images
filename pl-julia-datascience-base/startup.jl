@@ -1,15 +1,17 @@
-#using Startup # Startup module with precompiled Pluto.run()
 using Pluto
 
-server_options = Pluto.Configuration.ServerOptions(; host="0.0.0.0",
-                        port=1234,
-                        launch_browser=false,
-                        notebook="/home/julia/workspace/notebook.jl",
-                        dismiss_update_notification=true,
-                    )
-eval_options = Pluto.Configuration.EvaluationOptions(;
-    workspace_use_distributed_stdlib=false, # Using distributed doubles the memory usage.
-    workspace_use_distributed=false, # Using distributed doubles the memory usage.
-)
-security_options = Pluto.Configuration.SecurityOptions(; require_secret_for_access=false)
-Pluto.run(Pluto.Configuration.Options(; server=server_options, security=security_options, evaluation=eval_options))
+session = Pluto.ServerSession()
+
+session.options.compiler.heap_size_hint = "300M"
+
+session.options.server.host = "0.0.0.0"
+session.options.server.port=1234
+session.options.server.launch_browser=false
+#session.options.server.notebook="/home/julia/workspace/notebook.jl"
+session.options.server.dismiss_update_notification=true
+
+session.options.evaluation.workspace_use_distributed=false # Using distributed doubles the memory usage.
+
+session.options.security.require_secret_for_access=false
+
+Pluto.run(session)
