@@ -14,4 +14,7 @@ session.options.evaluation.workspace_use_distributed=false # Using distributed d
 
 session.options.security.require_secret_for_access=false
 
+notebook_path="/home/julia/workspace/notebook.jl"
+
+Pluto.SessionActions.open(session, notebook_path; execution_allowed=false);
 Pluto.run(session)
