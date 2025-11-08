@@ -52,7 +52,7 @@ echo -n "$SECRET_NAME" > $FILENAMES_DIR/output-fname.txt
 chmod +r $FILENAMES_DIR/output-fname.txt
 
 # run the autograder as a limited user called julia
-su -c "julia --project=/home/julia/project/ --color=no --heap-size-hint=1G $MERGE_DIR/filenames/test.jl" julia
+su -c "julia --project=/home/julia/project/ --color=no --heap-size-hint=800M $MERGE_DIR/filenames/test.jl" julia
 
 # remove any "fake" results.json files if they exist
 rm -f $MERGE_DIR/results.json

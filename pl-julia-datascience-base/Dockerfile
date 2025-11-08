@@ -1,4 +1,4 @@
-FROM julia:1.10
+FROM julia:1.12
 
 # Create workspace user (1001:1001).
 ARG user=julia

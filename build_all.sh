@@ -1,8 +1,9 @@
 #!/bin/bash
 
-export platform="linux/arm64/v8,linux/amd64"
+#export platform="linux/arm64/v8,linux/amd64"
+export platform="linux/amd64"
 
-tag="0.8.0"
+tag="0.8.5"
 
 for image in pl-julia-datascience-base pl-julia-datascience-grader pl-julia-datascience-pluto-workspace
 do

@@ -2,7 +2,7 @@ using Pluto
 
 session = Pluto.ServerSession()
 
-session.options.compiler.heap_size_hint = "300M"
+session.options.compiler.heap_size_hint = "800M"
 
 session.options.server.host = "0.0.0.0"
 session.options.server.port=1234
