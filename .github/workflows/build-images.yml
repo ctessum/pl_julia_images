@@ -1,0 +1,139 @@
+name: Build and push images
+
+# Manually triggered: Actions tab -> "Build and push images" -> "Run workflow".
+#
+# Builds the base, grader, and pluto-workspace images for linux/amd64 on a native
+# runner (Julia crashes under x86 emulation on Apple Silicon), pushes them to Docker Hub
+# as ctessum/<image>:<version>, and smoke-tests the workspace image.
+#
+# The "latest" tag is only moved if "also_latest" is checked. It is moved at the very end,
+# after the smoke test passes, by re-tagging the already-pushed versioned images.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   DOCKERHUB_USERNAME  Docker Hub user that owns the ctessum/* repositories
+#   DOCKERHUB_TOKEN     Docker Hub access token with Read & Write scope
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to push (for example 0.8.6)"
+        required: true
+        type: string
+      also_latest:
+        description: "Also move the \"latest\" tag to this version (after the smoke test passes)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-images
+  cancel-in-progress: false
+
+env:
+  NAMESPACE: ctessum
+  PLATFORM: linux/amd64
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check the version tag
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z]+)*$ ]]; then
+            echo "::error::Version '$VERSION' must look like 0.8.6 (and cannot be 'latest')."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      # The base image is about 4 GB and the runner has little free disk, so remove tools we don't use.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v6
+        with:
+          context: pl-julia-datascience-base
+          platforms: ${{ env.PLATFORM }}
+          push: true
+          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-base:${{ inputs.version }}
+
+      # The grader and workspace images are built on the base image with the same version
+      # tag (not "latest"), so they pick up the base image that was just pushed.
+      - name: Build and push grader image
+        uses: docker/build-push-action@v6
+        with:
+          context: pl-julia-datascience-grader
+          platforms: ${{ env.PLATFORM }}
+          push: true
+          build-args: BASE_TAG=${{ inputs.version }}
+          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-grader:${{ inputs.version }}
+
+      - name: Build and push pluto-workspace image
+        uses: docker/build-push-action@v6
+        with:
+          context: pl-julia-datascience-pluto-workspace
+          platforms: ${{ env.PLATFORM }}
+          push: true
+          build-args: BASE_TAG=${{ inputs.version }}
+          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-pluto-workspace:${{ inputs.version }}
+
+      - name: Smoke test the workspace image
+        run: |
+          image="$NAMESPACE/pl-julia-datascience-pluto-workspace:$VERSION"
+          docker run -d --name smoke --memory=1g -p 1234:1234 --user 1001:1001 "$image"
+
+          echo "--- Versions"
+          docker exec smoke julia --version
+          server_pluto=$(docker exec smoke julia --project=/home/julia/server -e 'using Pkg; print(Pkg.dependencies()[Base.UUID("c3e4b0f8-55cb-11ea-2926-15256bba5781")].version)')
+          project_pluto=$(docker exec smoke julia --project=/home/julia/project -e 'using Pkg; print(Pkg.dependencies()[Base.UUID("c3e4b0f8-55cb-11ea-2926-15256bba5781")].version)')
+          echo "Pluto in server env: $server_pluto; in project env: $project_pluto"
+          if [ "$server_pluto" != "$project_pluto" ]; then
+            echo "::error::Pluto versions differ between the server and project environments."
+            exit 1
+          fi
+
+          echo "--- Waiting for Pluto to answer on port 1234"
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:1234/; then
+              echo "Pluto is up after about $((i * 5)) seconds."
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' smoke)" != "true" ]; then
+              break
+            fi
+            sleep 5
+          done
+          echo "::error::Pluto did not start."
+          docker logs smoke
+          exit 1
+
+      - name: Show workspace container logs
+        if: always()
+        run: docker logs smoke || true
+
+      # Only runs after everything above has passed.
+      - name: Move the "latest" tag
+        if: ${{ inputs.also_latest }}
+        run: |
+          for image in pl-julia-datascience-base pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
+            docker buildx imagetools create \
+              --tag "$NAMESPACE/$image:latest" \
+              "$NAMESPACE/$image:$VERSION"
+          done

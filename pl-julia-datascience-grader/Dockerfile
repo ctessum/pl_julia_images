@@ -1,4 +1,5 @@
-FROM ctessum/pl-julia-datascience-base:latest
+ARG BASE_TAG=latest
+FROM ctessum/pl-julia-datascience-base:${BASE_TAG}
 
 # The grader needs to run as root.
 USER root
