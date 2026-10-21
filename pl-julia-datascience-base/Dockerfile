@@ -13,7 +13,6 @@ USER ${uid}:${gid}
 USER julia
 
 WORKDIR /home/julia
-VOLUME /home/julia
 
 ENV PROJECT_DIR=/home/julia/project
 ENV WORKSPACE_DIR=/home/julia/workspace
