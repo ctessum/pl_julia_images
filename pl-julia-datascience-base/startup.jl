@@ -2,7 +2,10 @@ using Pluto
 
 session = Pluto.ServerSession()
 
-session.options.compiler.heap_size_hint = "500M"
+# Heap size hint of the notebook process. A smaller hint makes the garbage collector run more
+# often (less memory, but very slow for notebooks that hold a lot of data, e.g. training a
+# model), so questions can override this with an environment variable in info.json.
+session.options.compiler.heap_size_hint = get(ENV, "PLUTO_WORKER_HEAP_SIZE_HINT", "400M")
 
 session.options.server.host = "0.0.0.0"
 session.options.server.port=1234

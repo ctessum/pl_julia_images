@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #export platform="linux/arm64/v8,linux/amd64"
-export platform="linux/amd64"
+export platform="${PLATFORM:-linux/amd64}"
 
-tag="0.8.6"
+tag="0.9.0"
 
 # Only the versioned tag is pushed unless PUSH_LATEST=1, so a new version can be tested
 # (e.g. by pointing a PrairieLearn question at ctessum/<image>:${tag}) before it becomes latest.
