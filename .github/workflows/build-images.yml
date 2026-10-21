@@ -2,12 +2,14 @@ name: Build and push images
 
 # Manually triggered: Actions tab -> "Build and push images" -> "Run workflow".
 #
-# Builds the base, grader, and pluto-workspace images for linux/amd64 on a native
-# runner (Julia crashes under x86 emulation on Apple Silicon), pushes them to Docker Hub
-# as ctessum/<image>:<version>, and smoke-tests the workspace image.
+# Builds the base, grader, and pluto-workspace images for linux/amd64 and linux/arm64, each
+# on a native runner (Julia crashes under emulation), and smoke-tests the workspace image.
+# Each architecture is pushed to Docker Hub as ctessum/<image>:<version>-<arch>; the
+# "publish" job then combines them into the multi-platform tag ctessum/<image>:<version>.
+# amd64 is required; if the arm64 build fails, <version> is published for amd64 only.
 #
 # The "latest" tag is only moved if "also_latest" is checked. It is moved at the very end,
-# after the smoke test passes, by re-tagging the already-pushed versioned images.
+# after the smoke tests pass, by re-tagging the already-pushed versioned images.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   DOCKERHUB_USERNAME  Docker Hub user that owns the ctessum/* repositories
@@ -35,14 +37,29 @@ concurrency:
 
 env:
   NAMESPACE: ctessum
-  PLATFORM: linux/amd64
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 340
+    # The arm64 image is nice to have (Apple Silicon); only amd64 is required.
+    continue-on-error: ${{ matrix.arch == 'arm64' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     env:
       VERSION: ${{ inputs.version }}
+      # Per-architecture tag. The grader and workspace images are built on the base image
+      # with the same tag.
+      TAG: ${{ inputs.version }}-${{ matrix.arch }}
     steps:
       - name: Check the version tag
         run: |
@@ -70,9 +87,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: pl-julia-datascience-base
-          platforms: ${{ env.PLATFORM }}
+          platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-base:${{ inputs.version }}
+          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-base:${{ env.TAG }}
 
       # The grader and workspace images are built on the base image with the same version
       # tag (not "latest"), so they pick up the base image that was just pushed.
@@ -80,23 +97,23 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: pl-julia-datascience-grader
-          platforms: ${{ env.PLATFORM }}
+          platforms: ${{ matrix.platform }}
           push: true
-          build-args: BASE_TAG=${{ inputs.version }}
-          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-grader:${{ inputs.version }}
+          build-args: BASE_TAG=${{ env.TAG }}
+          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-grader:${{ env.TAG }}
 
       - name: Build and push pluto-workspace image
         uses: docker/build-push-action@v6
         with:
           context: pl-julia-datascience-pluto-workspace
-          platforms: ${{ env.PLATFORM }}
+          platforms: ${{ matrix.platform }}
           push: true
-          build-args: BASE_TAG=${{ inputs.version }}
-          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-pluto-workspace:${{ inputs.version }}
+          build-args: BASE_TAG=${{ env.TAG }}
+          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-pluto-workspace:${{ env.TAG }}
 
       - name: Smoke test the workspace image
         run: |
-          image="$NAMESPACE/pl-julia-datascience-pluto-workspace:$VERSION"
+          image="$NAMESPACE/pl-julia-datascience-pluto-workspace:$TAG"
           docker run -d --name smoke --memory=1g -p 1234:1234 --user 1001:1001 "$image"
 
           echo "--- Versions"
@@ -127,6 +144,38 @@ jobs:
       - name: Show workspace container logs
         if: always()
         run: docker logs smoke || true
+
+  publish:
+    name: Publish ${{ inputs.version }}
+    needs: build
+    # Runs only if the amd64 build succeeded (an arm64 failure does not fail the build job).
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Combine the per-architecture images into one multi-platform tag
+        run: |
+          for image in pl-julia-datascience-base pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
+            sources=()
+            for arch in amd64 arm64; do
+              if docker buildx imagetools inspect "$NAMESPACE/$image:$VERSION-$arch" > /dev/null 2>&1; then
+                sources+=("$NAMESPACE/$image:$VERSION-$arch")
+              fi
+            done
+            if ! docker buildx imagetools inspect "$NAMESPACE/$image:$VERSION-amd64" > /dev/null 2>&1; then
+              echo "::error::The amd64 image of $image is missing."
+              exit 1
+            fi
+            echo "$image: ${sources[*]}"
+            docker buildx imagetools create --tag "$NAMESPACE/$image:$VERSION" "${sources[@]}"
+          done
 
       # Only runs after everything above has passed.
       - name: Move the "latest" tag
