@@ -19,6 +19,9 @@ RUN julia -e ' \
     Pkg.add(url=ENV["PLUTO_URL"], rev=ENV["PLUTO_REV"]); \
     Pkg.precompile()'
 
+# Optional startup timing page (enabled by the environment variable PLUTO_STARTUP_DIAG).
+COPY --chown=julia:julia --chmod=755 start.sh responder.jl /home/julia/project/
+
 EXPOSE 1234
 
-CMD [ "julia", "--project=/home/julia/server", "--color=no", "--heap-size-hint=300M", "/home/julia/project/startup.jl" ]
+CMD [ "/home/julia/project/start.sh", "--project=/home/julia/server", "--color=no", "--heap-size-hint=300M", "/home/julia/project/startup.jl" ]

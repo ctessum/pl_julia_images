@@ -1,4 +1,11 @@
+# Startup timing for diagnosing slow starts: only active when start.sh runs in diagnostic mode
+# (environment variable PLUTO_STARTUP_DIAG, set in info.json).
+const startup_log = get(ENV, "PLUTO_STARTUP_LOG", nothing)
+startup_stamp(msg) = startup_log === nothing || open(io -> println(io, Libc.strftime("%H:%M:%S", time()), " ", msg), startup_log, "a")
+startup_stamp("startup.jl: Julia is running, loading Pluto")
+
 using Pluto
+startup_stamp("startup.jl: Pluto loaded")
 
 session = Pluto.ServerSession()
 
@@ -20,4 +27,15 @@ session.options.security.require_secret_for_access=false
 notebook_path="/home/julia/workspace/notebook.jl"
 
 Pluto.SessionActions.open(session, notebook_path; execution_allowed=false);
+startup_stamp("startup.jl: notebook opened")
+
+if startup_log !== nothing
+    # Stop the status page (responder.jl) that answers on port 1234 while starting, so Pluto can take over.
+    touch("/tmp/stop_responder")
+    for _ in 1:100
+        isfile("/tmp/responder_closed") && break
+        sleep(0.1)
+    end
+    startup_stamp("startup.jl: starting the Pluto server on port 1234 (this page is replaced by Pluto)")
+end
 Pluto.run(session)
