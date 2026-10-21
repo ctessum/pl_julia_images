@@ -21,4 +21,4 @@ RUN julia -e ' \
 
 EXPOSE 1234
 
-CMD [ "julia", "--project=/home/julia/server", "--color=no", "--heap-size-hint=300M", "--compile=min", "-O0", "--gcthreads=1,0", "/home/julia/project/startup.jl" ]
+CMD [ "julia", "--project=/home/julia/server", "--color=no", "--heap-size-hint=300M", "/home/julia/project/startup.jl" ]
