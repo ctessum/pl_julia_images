@@ -51,9 +51,9 @@ ENV JULIA_NUM_THREADS=auto
 # ---- The course packages (the notebook environment), precompiled.
 FROM system AS project
 
-COPY --chown=julia:julia pl-julia-datascience-base/data ${DATA_DIR}
-COPY --chown=julia:julia pl-julia-datascience-base/Project.toml ${PROJECT_DIR}/
-COPY --chown=julia:julia pl-julia-datascience-base/UIUCDSQuestions.jl ${PROJECT_DIR}/src/
+COPY --chown=1001:1001 pl-julia-datascience-base/data ${DATA_DIR}
+COPY --chown=1001:1001 pl-julia-datascience-base/Project.toml ${PROJECT_DIR}/
+COPY --chown=1001:1001 pl-julia-datascience-base/UIUCDSQuestions.jl ${PROJECT_DIR}/src/
 
 RUN julia --project=${PROJECT_DIR} -e 'using Pkg; Pkg.instantiate(); Pkg.precompile(); using PlutoUI, Plots'
 
@@ -92,14 +92,14 @@ RUN JULIA_PKG_PRECOMPILE_AUTO=0 julia -e ' \
 
 # Put the bundled frontend into the Pluto package before Pluto is precompiled (Pluto looks for it
 # when it is loaded and remembers the result in its compile cache).
-COPY --from=pluto-frontend --chown=julia:julia /pluto/frontend-dist /tmp/frontend-dist
+COPY --from=pluto-frontend --chown=1001:1001 /pluto/frontend-dist /tmp/frontend-dist
 RUN pluto_dir=$(julia --project=/home/julia/server -e 'using Pkg; print(Pkg.dependencies()[Base.UUID("c3e4b0f8-55cb-11ea-2926-15256bba5781")].source)') \
     && mv /tmp/frontend-dist "$pluto_dir/frontend-dist" \
     && julia --project=/home/julia/server -e 'using Pkg; Pkg.precompile()'
 
-COPY --chown=julia:julia pl-julia-datascience-base/startup.jl ${PROJECT_DIR}/
-COPY --chown=julia:julia pl-julia-datascience-base/notebook.jl ${WORKSPACE_DIR}/
-COPY --chown=julia:julia --chmod=755 pl-julia-datascience-pluto-workspace/start.sh pl-julia-datascience-pluto-workspace/responder.jl pl-julia-datascience-pluto-workspace/warm.jl ${PROJECT_DIR}/
+COPY --chown=1001:1001 pl-julia-datascience-base/startup.jl ${PROJECT_DIR}/
+COPY --chown=1001:1001 pl-julia-datascience-base/notebook.jl ${WORKSPACE_DIR}/
+COPY --chown=1001:1001 --chmod=755 pl-julia-datascience-pluto-workspace/start.sh pl-julia-datascience-pluto-workspace/responder.jl pl-julia-datascience-pluto-workspace/warm.jl ${PROJECT_DIR}/
 
 # Run a notebook once, so that what Pluto sets up the first time a notebook runs (the notebook
 # environment and the compiled PlutoRunner) is part of the image instead of being redone in every
@@ -118,15 +118,15 @@ FROM system AS workspace
 ENV JULIA_WORKER_TIMEOUT=3600
 ENV JULIA_NUM_THREADS=1
 
-COPY --link --chown=julia:julia --from=workspace-build /tmp/split/artifacts/1/ /home/julia/.julia/artifacts/
-COPY --link --chown=julia:julia --from=workspace-build /tmp/split/artifacts/2/ /home/julia/.julia/artifacts/
-COPY --link --chown=julia:julia --from=workspace-build /tmp/split/artifacts/3/ /home/julia/.julia/artifacts/
-COPY --link --chown=julia:julia --from=workspace-build /tmp/split/compiled/1/ /home/julia/.julia/compiled/v1.10/
-COPY --link --chown=julia:julia --from=workspace-build /tmp/split/compiled/2/ /home/julia/.julia/compiled/v1.10/
-COPY --link --chown=julia:julia --from=workspace-build /tmp/split/compiled/3/ /home/julia/.julia/compiled/v1.10/
-COPY --link --chown=julia:julia --from=workspace-build /tmp/split/packages/ /home/julia/.julia/packages/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/artifacts/1/ /home/julia/.julia/artifacts/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/artifacts/2/ /home/julia/.julia/artifacts/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/artifacts/3/ /home/julia/.julia/artifacts/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/compiled/1/ /home/julia/.julia/compiled/v1.10/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/compiled/2/ /home/julia/.julia/compiled/v1.10/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/compiled/3/ /home/julia/.julia/compiled/v1.10/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/packages/ /home/julia/.julia/packages/
 # The rest (the project, the server environment, the registry, ...).
-COPY --link --chown=julia:julia --from=workspace-build /home/julia/ /home/julia/
+COPY --link --chown=1001:1001 --from=workspace-build /home/julia/ /home/julia/
 
 EXPOSE 1234
 
@@ -153,16 +153,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --link --chown=julia:julia --from=grader-build /tmp/split/artifacts/1/ /home/julia/.julia/artifacts/
-COPY --link --chown=julia:julia --from=grader-build /tmp/split/artifacts/2/ /home/julia/.julia/artifacts/
-COPY --link --chown=julia:julia --from=grader-build /tmp/split/artifacts/3/ /home/julia/.julia/artifacts/
-COPY --link --chown=julia:julia --from=grader-build /tmp/split/compiled/1/ /home/julia/.julia/compiled/v1.10/
-COPY --link --chown=julia:julia --from=grader-build /tmp/split/compiled/2/ /home/julia/.julia/compiled/v1.10/
-COPY --link --chown=julia:julia --from=grader-build /tmp/split/compiled/3/ /home/julia/.julia/compiled/v1.10/
-COPY --link --chown=julia:julia --from=grader-build /tmp/split/packages/ /home/julia/.julia/packages/
-COPY --link --chown=julia:julia --from=grader-build /home/julia/ /home/julia/
+COPY --link --chown=1001:1001 --from=grader-build /tmp/split/artifacts/1/ /home/julia/.julia/artifacts/
+COPY --link --chown=1001:1001 --from=grader-build /tmp/split/artifacts/2/ /home/julia/.julia/artifacts/
+COPY --link --chown=1001:1001 --from=grader-build /tmp/split/artifacts/3/ /home/julia/.julia/artifacts/
+COPY --link --chown=1001:1001 --from=grader-build /tmp/split/compiled/1/ /home/julia/.julia/compiled/v1.10/
+COPY --link --chown=1001:1001 --from=grader-build /tmp/split/compiled/2/ /home/julia/.julia/compiled/v1.10/
+COPY --link --chown=1001:1001 --from=grader-build /tmp/split/compiled/3/ /home/julia/.julia/compiled/v1.10/
+COPY --link --chown=1001:1001 --from=grader-build /tmp/split/packages/ /home/julia/.julia/packages/
+COPY --link --chown=1001:1001 --from=grader-build /home/julia/ /home/julia/
 
-COPY --chown=julia:julia --chmod=+x pl-julia-datascience-grader/run.sh /
+COPY --chown=1001:1001 --chmod=+x pl-julia-datascience-grader/run.sh /
 
 # Set an environment variable indicating that we're in the autograder.
 ENV GRADER=TRUE
