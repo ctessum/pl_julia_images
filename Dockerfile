@@ -111,7 +111,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
     && julia --project=/opt/pcenv -e 'using PackageCompiler; create_sysimage(["Pluto"]; project="/home/julia/server", sysimage_path="/home/julia/server/pluto.so", precompile_execution_file="/home/julia/project/sysimage_workload.jl", cpu_target="generic")' \
     && chown julia:julia /home/julia/server/pluto.so \
     && apt-get clean \
-    && rm -rf /opt/pc /opt/pcenv /var/lib/apt/lists/*
+    && rm -rf /opt/pc /opt/pcenv /var/lib/apt/lists/* /tmp/*
 USER julia
 
 COPY --chown=1001:1001 pl-julia-datascience-base/startup.jl ${PROJECT_DIR}/
