@@ -3,7 +3,8 @@ A container with Julia and Pluto.jl
 To build:
 
 ``` bash
-docker buildx build --platform linux/arm64/v8,linux/amd64 --push --tag ctessum/pl-julia-datascience-pluto-workspace:latest .
+# from the root of the repository (the Dockerfile there builds the grader and the workspace image)
+docker buildx build --platform linux/amd64 --target workspace --push --tag ctessum/pl-julia-datascience-pluto-workspace:<version> .
 ```
 
 To run:

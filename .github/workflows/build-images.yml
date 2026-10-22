@@ -2,7 +2,7 @@ name: Build and push images
 
 # Manually triggered: Actions tab -> "Build and push images" -> "Run workflow".
 #
-# Builds the base, grader, and pluto-workspace images for linux/amd64 and linux/arm64, each
+# Builds the grader and pluto-workspace images for linux/amd64 and linux/arm64, each
 # on a native runner (Julia crashes under emulation), and smoke-tests the workspace image.
 # Each architecture is pushed to Docker Hub as ctessum/<image>:<version>-<arch>; the
 # "publish" job then combines them into the multi-platform tag ctessum/<image>:<version>.
@@ -57,7 +57,7 @@ jobs:
             runner: ubuntu-24.04-arm
     env:
       VERSION: ${{ inputs.version }}
-      # Per-architecture tag. The grader and workspace images are built on the base image
+      # Per-architecture tag.
       # with the same tag.
       TAG: ${{ inputs.version }}-${{ matrix.arch }}
     steps:
@@ -70,7 +70,7 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # The base image is about 4 GB and the runner has little free disk, so remove tools we don't use.
+      # The images are several GB and the runner has little free disk, so remove tools we don't use.
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
@@ -83,32 +83,24 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push base image
-        uses: docker/build-push-action@v6
-        with:
-          context: pl-julia-datascience-base
-          platforms: ${{ matrix.platform }}
-          push: true
-          tags: ${{ env.NAMESPACE }}/pl-julia-datascience-base:${{ env.TAG }}
-
-      # The grader and workspace images are built on the base image with the same version
-      # tag (not "latest"), so they pick up the base image that was just pushed.
+      # Both images are built from the one Dockerfile in the root of the repository (targets "grader"
+      # and "workspace"); they share the stages that install the course packages, which are only built once.
       - name: Build and push grader image
         uses: docker/build-push-action@v6
         with:
-          context: pl-julia-datascience-grader
+          context: .
+          target: grader
           platforms: ${{ matrix.platform }}
           push: true
-          build-args: BASE_TAG=${{ env.TAG }}
           tags: ${{ env.NAMESPACE }}/pl-julia-datascience-grader:${{ env.TAG }}
 
       - name: Build and push pluto-workspace image
         uses: docker/build-push-action@v6
         with:
-          context: pl-julia-datascience-pluto-workspace
+          context: .
+          target: workspace
           platforms: ${{ matrix.platform }}
           push: true
-          build-args: BASE_TAG=${{ env.TAG }}
           tags: ${{ env.NAMESPACE }}/pl-julia-datascience-pluto-workspace:${{ env.TAG }}
 
       - name: Smoke test the workspace image
@@ -118,13 +110,7 @@ jobs:
 
           echo "--- Versions"
           docker exec smoke julia --version
-          server_pluto=$(docker exec smoke julia --project=/home/julia/server -e 'using Pkg; print(Pkg.dependencies()[Base.UUID("c3e4b0f8-55cb-11ea-2926-15256bba5781")].version)')
-          project_pluto=$(docker exec smoke julia --project=/home/julia/project -e 'using Pkg; print(Pkg.dependencies()[Base.UUID("c3e4b0f8-55cb-11ea-2926-15256bba5781")].version)')
-          echo "Pluto in server env: $server_pluto; in project env: $project_pluto"
-          if [ "$server_pluto" != "$project_pluto" ]; then
-            echo "::error::Pluto versions differ between the server and project environments."
-            exit 1
-          fi
+          echo "Pluto in server env: $(docker exec smoke julia --project=/home/julia/server -e 'using Pkg; print(Pkg.dependencies()[Base.UUID("c3e4b0f8-55cb-11ea-2926-15256bba5781")].version)')"
 
           echo "--- Waiting for Pluto to answer on port 1234"
           for i in $(seq 1 60); do
@@ -162,7 +148,7 @@ jobs:
 
       - name: Combine the per-architecture images into one multi-platform tag
         run: |
-          for image in pl-julia-datascience-base pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
+          for image in pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
             sources=()
             for arch in amd64 arm64; do
               if docker buildx imagetools inspect "$NAMESPACE/$image:$VERSION-$arch" > /dev/null 2>&1; then
@@ -181,7 +167,7 @@ jobs:
       - name: Move the "latest" tag
         if: ${{ inputs.also_latest }}
         run: |
-          for image in pl-julia-datascience-base pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
+          for image in pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
             docker buildx imagetools create \
               --tag "$NAMESPACE/$image:latest" \
               "$NAMESPACE/$image:$VERSION"

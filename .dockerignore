@@ -1,0 +1,11 @@
+*
+!pl-julia-datascience-base/data
+!pl-julia-datascience-base/Project.toml
+!pl-julia-datascience-base/UIUCDSQuestions.jl
+!pl-julia-datascience-base/notebook.jl
+!pl-julia-datascience-base/startup.jl
+!pl-julia-datascience-grader/run.sh
+!pl-julia-datascience-pluto-workspace/start.sh
+!pl-julia-datascience-pluto-workspace/responder.jl
+!pl-julia-datascience-pluto-workspace/warm.jl
+!split.sh
