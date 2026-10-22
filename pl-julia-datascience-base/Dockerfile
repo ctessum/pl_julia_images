@@ -1,4 +1,15 @@
-FROM julia:1.10
+# Julia compiles the cache of every package for the CPU of the machine that builds the image
+# ("native") and rejects it, then recompiles everything at startup, on a machine with a different
+# CPU (e.g. one that lacks a feature of the build machine). So build for a portable set of
+# targets instead: these are Julia's own defaults for the system image. The variable has to be
+# set while building and while running, because it is part of the cache key.
+ARG TARGETARCH
+FROM julia:1.10 AS julia-amd64
+ENV JULIA_CPU_TARGET="generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"
+FROM julia:1.10 AS julia-arm64
+ENV JULIA_CPU_TARGET="generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3)"
+
+FROM julia-${TARGETARCH}
 
 # Create workspace user (1001:1001).
 ARG user=julia
