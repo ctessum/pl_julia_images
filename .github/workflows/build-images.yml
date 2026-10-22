@@ -37,6 +37,9 @@ concurrency:
 
 env:
   NAMESPACE: ctessum
+  # The layers are compressed with zstd instead of gzip: they are smaller and unpack much faster
+  # (needs Docker 23 or newer on the machines that pull the images).
+  IMAGE_OUTPUT: type=image,push=true,oci-mediatypes=true,compression=zstd,compression-level=19,force-compression=true
 
 jobs:
   build:
@@ -91,7 +94,7 @@ jobs:
           context: .
           target: grader
           platforms: ${{ matrix.platform }}
-          push: true
+          outputs: ${{ env.IMAGE_OUTPUT }}
           tags: ${{ env.NAMESPACE }}/pl-julia-datascience-grader:${{ env.TAG }}
 
       - name: Build and push pluto-workspace image
@@ -100,7 +103,7 @@ jobs:
           context: .
           target: workspace
           platforms: ${{ matrix.platform }}
-          push: true
+          outputs: ${{ env.IMAGE_OUTPUT }}
           tags: ${{ env.NAMESPACE }}/pl-julia-datascience-pluto-workspace:${{ env.TAG }}
 
       - name: Smoke test the workspace image

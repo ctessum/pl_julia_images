@@ -97,6 +97,23 @@ RUN pluto_dir=$(julia --project=/home/julia/server -e 'using Pkg; print(Pkg.depe
     && mv /tmp/frontend-dist "$pluto_dir/frontend-dist" \
     && julia --project=/home/julia/server -e 'using Pkg; Pkg.precompile()'
 
+# A system image with Pluto, its dependencies and the code that starting the server and serving the
+# first page need, already compiled. Without it, a workspace host spends about 25 seconds compiling
+# Pluto's code every time a workspace starts (it also uses less memory). The server is the only
+# process that uses it. It is built for a generic CPU, which is plenty for a web server and needs
+# much less memory to build. PackageCompiler is installed in a separate depot (/opt/pc) to keep it
+# out of the image, and needs a C compiler.
+COPY --chown=1001:1001 pl-julia-datascience-pluto-workspace/sysimage_workload.jl ${PROJECT_DIR}/
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && export JULIA_DEPOT_PATH=/opt/pc:/home/julia/.julia \
+    && julia --project=/opt/pcenv -e 'using Pkg; Pkg.add("PackageCompiler")' \
+    && julia --project=/opt/pcenv -e 'using PackageCompiler; create_sysimage(["Pluto"]; project="/home/julia/server", sysimage_path="/home/julia/server/pluto.so", precompile_execution_file="/home/julia/project/sysimage_workload.jl", cpu_target="generic")' \
+    && chown julia:julia /home/julia/server/pluto.so \
+    && apt-get clean \
+    && rm -rf /opt/pc /opt/pcenv /var/lib/apt/lists/*
+USER julia
+
 COPY --chown=1001:1001 pl-julia-datascience-base/startup.jl ${PROJECT_DIR}/
 COPY --chown=1001:1001 pl-julia-datascience-base/notebook.jl ${WORKSPACE_DIR}/
 COPY --chown=1001:1001 --chmod=755 pl-julia-datascience-pluto-workspace/start.sh pl-julia-datascience-pluto-workspace/responder.jl pl-julia-datascience-pluto-workspace/warm.jl ${PROJECT_DIR}/
@@ -111,7 +128,8 @@ RUN rm -rf /home/julia/.julia/clones /home/julia/.julia/logs /home/julia/.julia/
     && mkdir -p /tmp/split \
     && /usr/local/bin/split.sh /home/julia/.julia/artifacts 3 /tmp/split/artifacts \
     && /usr/local/bin/split.sh /home/julia/.julia/compiled/v1.10 3 /tmp/split/compiled \
-    && mv /home/julia/.julia/packages /tmp/split/packages
+    && mv /home/julia/.julia/packages /tmp/split/packages \
+    && mv /home/julia/server/pluto.so /tmp/split/pluto.so
 
 FROM system AS workspace
 
@@ -125,12 +143,13 @@ COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/compiled/1/ /hom
 COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/compiled/2/ /home/julia/.julia/compiled/v1.10/
 COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/compiled/3/ /home/julia/.julia/compiled/v1.10/
 COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/packages/ /home/julia/.julia/packages/
+COPY --link --chown=1001:1001 --from=workspace-build /tmp/split/pluto.so /home/julia/server/pluto.so
 # The rest (the project, the server environment, the registry, ...).
 COPY --link --chown=1001:1001 --from=workspace-build /home/julia/ /home/julia/
 
 EXPOSE 1234
 
-CMD [ "/home/julia/project/start.sh", "--project=/home/julia/server", "--color=no", "--heap-size-hint=300M", "/home/julia/project/startup.jl" ]
+CMD [ "/home/julia/project/start.sh", "--sysimage=/home/julia/server/pluto.so", "--project=/home/julia/server", "--color=no", "--heap-size-hint=300M", "/home/julia/project/startup.jl" ]
 
 
 # ---- The autograder.
