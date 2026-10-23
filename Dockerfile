@@ -123,15 +123,6 @@ COPY --chown=1001:1001 --chmod=755 pl-julia-datascience-pluto-workspace/start.sh
 # new container (this takes about 20 seconds).
 RUN julia --project=/home/julia/server ${PROJECT_DIR}/warm.jl
 
-# Remove the debug information from the compiled files (about a fifth of their size). Julia does not
-# use it: stack traces still show the file and line of the Julia source code. (Needs the tool
-# "strip".) It runs after everything else that creates compiled files.
-USER root
-RUN apt-get update && apt-get install -y --no-install-recommends binutils \
-    && find /home/julia/.julia/compiled /home/julia/server -name '*.so' -exec strip --strip-debug {} + \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
-USER julia
-
 # Remove what is only needed while building, then split the depot into balanced groups.
 RUN rm -rf /home/julia/.julia/clones /home/julia/.julia/logs /home/julia/.julia/pluto_notebooks /tmp/* \
     && mkdir -p /tmp/split \
@@ -163,15 +154,6 @@ CMD [ "/home/julia/project/start.sh", "--sysimage=/home/julia/server/pluto.so", 
 
 # ---- The autograder.
 FROM project AS grader-build
-
-# Remove the debug information from the compiled files (about a fifth of their size). Julia does not
-# use it: stack traces still show the file and line of the Julia source code. (Needs the tool
-# "strip".) It runs after everything else that creates compiled files.
-USER root
-RUN apt-get update && apt-get install -y --no-install-recommends binutils \
-    && find /home/julia/.julia/compiled  -name '*.so' -exec strip --strip-debug {} + \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
-USER julia
 
 RUN rm -rf /home/julia/.julia/clones /home/julia/.julia/logs /tmp/* \
     && mkdir -p /tmp/split \
