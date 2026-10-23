@@ -1,0 +1,61 @@
+name: Move the latest tag
+
+# Manually triggered: Actions tab -> "Move the latest tag" -> "Run workflow".
+#
+# Points the "latest" tag of the grader and workspace images to an already pushed version
+# (for example after testing it in PrairieLearn), without rebuilding anything. This runs on
+# GitHub (the same way "Build and push images" tags latest), so the tag is updated on Docker Hub
+# itself and visible to anonymous pulls, which is how the workspace hosts pull.
+#
+# Required repository secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (Read & Write).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing version tag that latest should point to (for example 0.11.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-images
+  cancel-in-progress: false
+
+env:
+  NAMESPACE: ctessum
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check the version tag
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z]+)*$ ]]; then
+            echo "::error::Version '$VERSION' must look like 0.11.2 (and cannot be 'latest')."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Move the latest tag
+        run: |
+          for image in pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
+            docker buildx imagetools inspect "$NAMESPACE/$image:$VERSION" > /dev/null
+            docker buildx imagetools create --tag "$NAMESPACE/$image:latest" "$NAMESPACE/$image:$VERSION"
+          done
+
+      - name: Show the result
+        run: |
+          for image in pl-julia-datascience-grader pl-julia-datascience-pluto-workspace; do
+            docker buildx imagetools inspect "$NAMESPACE/$image:latest" | grep -E "Name:|Digest:" | head -2
+          done
